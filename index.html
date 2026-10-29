@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图像噪声与去噪实验室</title>
+<style>
+  :root{--blue:#0054A6;--deep:#004471;--orange:#EF7E00;--red:#DF0017;--bg:#f3f6fa;--card:#fff;--line:#dde4ee;--text:#1f2937;--muted:#64748b;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;}
+  header.appbar{background:linear-gradient(120deg,var(--deep),var(--blue) 60%,#2a7fd4);color:#fff;padding:18px 20px 16px;}
+  header.appbar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.5px;}
+  header.appbar p{margin:4px 0 0;font-size:13.5px;opacity:.9;}
+  main{max-width:1180px;margin:0 auto;padding:16px;}
+  .desc{background:#e8f1fb;border-left:4px solid var(--blue);border-radius:6px;padding:10px 14px;font-size:14px;margin-bottom:14px;}
+  .desc b{color:var(--deep);}
+  .layout{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:14px;align-items:start;}
+  @media(max-width:860px){.layout{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(15,23,42,.04);}
+  .card h2{font-size:16px;margin:0 0 10px;color:var(--deep);display:flex;align-items:center;gap:8px;}
+  .step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;align-items:center;justify-content:center;flex:none;}
+  label.row{display:block;font-size:14px;margin:8px 0 4px;color:#334155;}
+  select,input[type=number]{font:inherit;font-size:14px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;}
+  select{width:100%;}
+  .slider{display:flex;align-items:center;gap:8px;}
+  .slider input[type=range]{flex:1;accent-color:var(--blue);}
+  .slider input[type=number]{width:74px;}
+  .hint{font-size:12.5px;color:var(--muted);margin:3px 0 0;}
+  .btn{display:inline-block;font:inherit;font-size:14px;padding:7px 12px;border-radius:6px;border:1px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer;}
+  .btn.ghost{background:#fff;color:var(--blue);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .check{font-size:14px;display:flex;align-items:center;gap:6px;margin-top:8px;}
+  .panels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+  @media(max-width:620px){.panels{grid-template-columns:1fr;}}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;}
+  .panel h3{margin:2px 0 6px;font-size:14.5px;}
+  .panel canvas{width:100%;height:auto;display:block;border-radius:4px;background:repeating-conic-gradient(#eef2f7 0 25%,#fff 0 50%) 0 0/16px 16px;cursor:zoom-in;}
+  .metric{font-size:13px;color:var(--muted);margin-top:6px;min-height:20px;}
+  .metric b{color:var(--text);}
+  .metric .up{color:#15803d;font-weight:600;}
+  .metric .down{color:var(--red);font-weight:600;}
+  .status{font-size:13px;color:var(--orange);min-height:20px;margin:6px 0 0;}
+  .tips{font-size:14px;}
+  .tips ol{margin:4px 0;padding-left:20px;}
+  .tips li{margin:3px 0;}
+  .formula{font-family:"Cambria Math","Times New Roman",serif;font-style:italic;}
+  #overlay{position:fixed;inset:0;background:rgba(15,23,42,.88);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:10;padding:12px;}
+  #overlay img{max-width:96vw;max-height:84vh;image-rendering:pixelated;background:#fff;}
+  #overlay p{color:#e2e8f0;font-size:14px;margin:8px 0 0;}
+  footer{text-align:center;font-size:12.5px;color:var(--muted);padding:6px 0 22px;}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <h1>图像噪声与去噪实验室</h1>
+  <p>无处不在的统计 · 新生研讨课配套小工具</p>
+</header>
+<main>
+  <div class="desc">
+    通用模型：<b>观测图像 = 理想图像 + 噪声</b>。先选一张图片，给它“加点料”（噪声），再选一种去噪方法，看看哪种统计方法能把“真相”猜回来。
+    图片只在你自己的浏览器里处理，<b>不会上传</b>到任何服务器。
+  </div>
+
+  <div class="layout">
+    <div>
+      <section class="card">
+        <h2><span class="step">1</span>选择图片</h2>
+        <select id="sample">
+          <option value="pattern">示例图：几何测试图</option>
+          <option value="text">示例图：文字与细线</option>
+          <option value="upload">上传自己的照片…</option>
+        </select>
+        <input type="file" id="file" accept="image/*" style="display:none">
+        <div class="btns"><button class="btn ghost" id="pickBtn">上传 / 拍一张照片</button></div>
+        <label class="row" for="maxSide">处理分辨率（长边像素）</label>
+        <select id="maxSide">
+          <option value="320">320（最快，手机推荐）</option>
+          <option value="480" selected>480</option>
+          <option value="720">720（较慢）</option>
+        </select>
+        <label class="check"><input type="checkbox" id="gray">转成黑白（灰度）图处理</label>
+        <p class="hint" id="imgInfo"></p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step">2</span>添加噪声</h2>
+        <select id="noiseType">
+          <option value="gauss">高斯噪声（电路噪声）</option>
+          <option value="poisson">泊松噪声（光子噪声，暗光拍照）</option>
+          <option value="sp">椒盐噪声（坏点 / 传输错误）</option>
+          <option value="none">不加噪声</option>
+        </select>
+        <div id="noiseParams"></div>
+        <div class="btns"><button class="btn ghost" id="reseed">重新生成噪声（换一次随机）</button></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="step">3</span>选择去噪方法</h2>
+        <select id="method">
+          <option value="mean">均值滤波（邻居求平均）</option>
+          <option value="median">中值滤波（邻居取中位数）</option>
+          <option value="gauss">高斯滤波（加权平均）</option>
+          <option value="bilateral">双边滤波（进阶：保边的加权平均）</option>
+          <option value="multi">多帧平均（模拟手机夜景模式）</option>
+          <option value="none">不去噪</option>
+        </select>
+        <div id="methodParams"></div>
+        <p class="hint" id="methodHint"></p>
+      </section>
+    </div>
+
+    <div>
+      <section class="card">
+        <h2><span class="step">4</span>结果对比 <span class="hint" style="font-weight:normal">（点图片可放大看细节）</span></h2>
+        <div class="panels">
+          <div class="panel"><h3>原图</h3><canvas id="cOrig"></canvas><div class="metric">理想图像（“真相”）</div></div>
+          <div class="panel"><h3>噪声图</h3><canvas id="cNoisy"></canvas><div class="metric" id="mNoisy"></div></div>
+          <div class="panel"><h3>去噪后图像</h3><canvas id="cDen"></canvas><div class="metric" id="mDen"></div></div>
+        </div>
+        <p class="status" id="status"></p>
+        <div class="btns"><button class="btn" id="dlBtn">下载去噪后图像</button></div>
+        <p class="hint">PSNR（峰值信噪比）衡量图像和原图有多接近，单位 dB，<b>越大越接近原图</b>。一般 30 dB 以上肉眼已不太容易看出差别。</p>
+      </section>
+
+      <section class="card tips">
+        <h2>动手试一试</h2>
+        <ol>
+          <li><b>对症下药：</b>选“椒盐噪声”，分别用均值滤波和中值滤波，哪个更干净？为什么中位数不怕“极端分子”？</li>
+          <li><b>没有免费的午餐：</b>把窗口大小从 3 调到 7、11、15，噪点少了，但照片变成了什么样？</li>
+          <li><b>暗光为什么颗粒重：</b>选“泊松噪声”，把光子数从 1000 慢慢调到 10，观察噪声怎么变。</li>
+          <li><b>夜景模式的秘密：</b>选“多帧平均”，帧数取 1、4、16，PSNR 大约各提升多少？（提示：<span class="formula">n</span> 帧平均，噪声缩小到 <span class="formula">1/√n</span>）</li>
+          <li><b>进阶：</b>对比高斯滤波和双边滤波在物体边缘处的效果，双边滤波多考虑了什么？</li>
+        </ol>
+      </section>
+    </div>
+  </div>
+</main>
+<footer>北京信息科技大学 · 何迪 · 图像信息处理中的统计</footer>
+<div id="overlay"><img id="ovImg" alt=""><p id="ovCap"></p><p>点击任意位置关闭</p></div>
+
+<script>
+"use strict";
+// ---------- 参数定义 ----------
+const NOISE = {
+  gauss:   [{id:'sigma', label:'噪声标准差 σ（越大越“沙”）', min:0, max:80, step:1, val:20}],
+  poisson: [{id:'photons', label:'最亮处的平均光子数 N（越小越暗、越颗粒）', min:2, max:1000, step:1, val:30, log:true}],
+  sp:      [{id:'density', label:'坏点比例（%）', min:0, max:50, step:0.5, val:5}],
+  none:    []
+};
+const METHOD = {
+  mean:     {p:[{id:'k', label:'窗口大小 k×k', min:3, max:15, step:2, val:3}],
+             hint:'用 k×k 窗口内所有像素的算术平均代替中心像素：对高斯噪声有效，但会“和稀泥”模糊边缘。'},
+  median:   {p:[{id:'k', label:'窗口大小 k×k', min:3, max:15, step:2, val:3}],
+             hint:'把窗口内像素排序取中间值：对椒盐噪声效果极佳，并能较好地保留边缘。'},
+  gauss:    {p:[{id:'s', label:'高斯核 σ（越大越平滑、越模糊）', min:0.5, max:5, step:0.1, val:1.2}],
+             hint:''},
+  bilateral:{p:[{id:'ss', label:'空间 σ（考虑多远的邻居）', min:0.5, max:4, step:0.1, val:2},
+                {id:'sr', label:'亮度 σ（亮度差多少还算“自己人”）', min:5, max:120, step:1, val:40}],
+             hint:'权重同时看“离得近不近”和“亮度像不像”：边缘两侧亮度差大，互相几乎不平均，所以边缘不容易糊。'},
+  multi:    {p:[{id:'n', label:'连拍帧数 n', min:1, max:64, step:1, val:4}],
+             hint:'同一场景连拍 n 张（每张噪声独立）再逐像素求平均，这就是手机夜景模式“请保持稳定”的原因。'},
+  none:     {p:[], hint:'不做任何处理，去噪后图像 = 噪声图。'}
+};
+
+const $ = id => document.getElementById(id);
+let orig = null;          // {w,h,c:[Float32Array]}
+let seed = 12345;
+let noisy = null;
+let timer = null;
+
+// ---------- 控件生成（滑块+数字框双向同步） ----------
+function buildParams(container, defs, onChange){
+  container.innerHTML = '';
+  for(const d of defs){
+    const lab = document.createElement('label'); lab.className='row'; lab.textContent=d.label; lab.htmlFor=container.id+'_'+d.id+'_n';
+    const wrap = document.createElement('div'); wrap.className='slider';
+    const r = document.createElement('input'); r.type='range';
+    const n = document.createElement('input'); n.type='number'; n.id=container.id+'_'+d.id+'_n';
+    n.min=d.min; n.max=d.max; n.step=d.step; n.value=d.val;
+    if(d.log){ r.min=0; r.max=1000; r.step=1; r.value=toLog(d.val,d); }
+    else { r.min=d.min; r.max=d.max; r.step=d.step; r.value=d.val; }
+    r.addEventListener('input',()=>{ n.value = d.log ? Math.round(fromLog(+r.value,d)) : r.value; onChange(); });
+    n.addEventListener('input',()=>{ const v=+n.value; if(isFinite(v)&&v>=d.min&&v<=d.max){ r.value = d.log?toLog(v,d):v; onChange(); } });
+    n.addEventListener('change',()=>{ let v=+n.value; if(!isFinite(v)) v=d.val; v=Math.min(d.max,Math.max(d.min,v));
+      if(d.step===2 && (v-d.min)%2) v-=1;   // 窗口大小保持奇数
+      n.value=v; r.value=d.log?toLog(v,d):v; onChange(); });
+    wrap.append(r,n); container.append(lab,wrap);
+  }
+}
+function toLog(v,d){ return Math.round(1000*Math.log(v/d.min)/Math.log(d.max/d.min)); }
+function fromLog(t,d){ return d.min*Math.pow(d.max/d.min,t/1000); }
+function readParams(container, defs){
+  const o={}; for(const d of defs){ o[d.id] = +$(container.id+'_'+d.id+'_n').value; } return o;
+}
+
+// ---------- 随机数（可复现） ----------
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function gaussRng(rand){ let spare=null; return function(){ if(spare!==null){const s=spare; spare=null; return s;}
+  let u=0; while(u===0) u=rand(); const v=rand(); const m=Math.sqrt(-2*Math.log(u)); spare=m*Math.sin(2*Math.PI*v); return m*Math.cos(2*Math.PI*v); }; }
+function poissonSample(lam, rand, grand){
+  if(lam<=0) return 0;
+  if(lam>40) return Math.max(0, Math.round(lam + Math.sqrt(lam)*grand()));   // 大 λ 用正态近似
+  const L=Math.exp(-lam); let k=0, p=1; do{ k++; p*=rand(); }while(p>L); return k-1;
+}
+
+// ---------- 图像工具 ----------
+const clamp255 = v => v<0?0:(v>255?255:v);
+function cloneImg(im){ return {w:im.w,h:im.h,c:im.c.map(a=>new Float32Array(a))}; }
+function fromCanvas(cv, gray){
+  const ctx=cv.getContext('2d'); const d=ctx.getImageData(0,0,cv.width,cv.height).data; const N=cv.width*cv.height;
+  if(gray){ const g=new Float32Array(N); for(let i=0;i<N;i++) g[i]=0.299*d[4*i]+0.587*d[4*i+1]+0.114*d[4*i+2]; return {w:cv.width,h:cv.height,c:[g]}; }
+  const r=new Float32Array(N),gg=new Float32Array(N),b=new Float32Array(N);
+  for(let i=0;i<N;i++){ r[i]=d[4*i]; gg[i]=d[4*i+1]; b[i]=d[4*i+2]; }
+  return {w:cv.width,h:cv.height,c:[r,gg,b]};
+}
+function draw(im, cv){
+  cv.width=im.w; cv.height=im.h; const ctx=cv.getContext('2d'); const out=ctx.createImageData(im.w,im.h); const d=out.data; const N=im.w*im.h;
+  for(let i=0;i<N;i++){
+    if(im.c.length===1){ const v=Math.round(clamp255(im.c[0][i])); d[4*i]=d[4*i+1]=d[4*i+2]=v; }
+    else { d[4*i]=Math.round(clamp255(im.c[0][i])); d[4*i+1]=Math.round(clamp255(im.c[1][i])); d[4*i+2]=Math.round(clamp255(im.c[2][i])); }
+    d[4*i+3]=255;
+  }
+  ctx.putImageData(out,0,0);
+}
+function psnr(a,b){
+  let s=0,n=0; for(let ch=0;ch<a.c.length;ch++){ const x=a.c[ch], y=b.c[ch];
+    for(let i=0;i<x.length;i++){ const e=Math.round(clamp255(x[i]))-Math.round(clamp255(y[i])); s+=e*e; } n+=x.length; }
+  const mse=s/n; return mse===0?Infinity:10*Math.log10(255*255/mse);
+}
+
+// ---------- 噪声 ----------
+function addNoise(im, type, p, sd){
+  const out=cloneImg(im); const rand=mulberry32(sd); const grand=gaussRng(rand); const N=im.w*im.h;
+  if(type==='gauss'){ for(const a of out.c) for(let i=0;i<N;i++) a[i]=clamp255(a[i]+p.sigma*grand()); }
+  else if(type==='poisson'){ const P=p.photons;
+    for(const a of out.c) for(let i=0;i<N;i++) a[i]=clamp255(poissonSample(a[i]/255*P,rand,grand)*255/P); }
+  else if(type==='sp'){ const d=p.density/100;
+    for(let i=0;i<N;i++){ if(rand()<d){ const v=rand()<0.5?0:255; for(const a of out.c) a[i]=v; } } }
+  return out;
+}
+
+// ---------- 滤波（边界用复制最近像素） ----------
+function sepConv(a,w,h,ker){
+  const r=(ker.length-1)/2, tmp=new Float32Array(w*h), out=new Float32Array(w*h);
+  for(let y=0;y<h;y++){ const row=y*w; for(let x=0;x<w;x++){ let s=0;
+    for(let k=-r;k<=r;k++){ let xx=x+k; xx=xx<0?0:(xx>=w?w-1:xx); s+=ker[k+r]*a[row+xx]; } tmp[row+x]=s; } }
+  for(let y=0;y<h;y++){ for(let x=0;x<w;x++){ let s=0;
+    for(let k=-r;k<=r;k++){ let yy=y+k; yy=yy<0?0:(yy>=h?h-1:yy); s+=ker[k+r]*tmp[yy*w+x]; } out[y*w+x]=s; } }
+  return out;
+}
+function meanFilter(im,k){ const ker=new Float32Array(k).fill(1/k); return {w:im.w,h:im.h,c:im.c.map(a=>sepConv(a,im.w,im.h,ker))}; }
+function gaussKernel(s){ const r=Math.max(1,Math.ceil(3*s)); const ker=new Float32Array(2*r+1); let t=0;
+  for(let i=-r;i<=r;i++){ ker[i+r]=Math.exp(-i*i/(2*s*s)); t+=ker[i+r]; } for(let i=0;i<ker.length;i++) ker[i]/=t; return ker; }
+function gaussFilter(im,s){ const ker=gaussKernel(s); return {w:im.w,h:im.h,c:im.c.map(a=>sepConv(a,im.w,im.h,ker))}; }
+function medianFilter(im,k){
+  const w=im.w,h=im.h,r=(k-1)/2,half=(k*k+1)>>1;
+  return {w,h,c:im.c.map(src=>{
+    const a=new Uint8Array(w*h); for(let i=0;i<a.length;i++) a[i]=Math.round(clamp255(src[i]));
+    const out=new Float32Array(w*h), hist=new Int32Array(256);
+    const cx=x=>x<0?0:(x>=w?w-1:x), cy=y=>y<0?0:(y>=h?h-1:y);
+    for(let y=0;y<h;y++){
+      hist.fill(0);
+      for(let dy=-r;dy<=r;dy++){ const row=cy(y+dy)*w; for(let dx=-r;dx<=r;dx++) hist[a[row+cx(dx)]]++; }
+      for(let x=0;x<w;x++){
+        let c=0,v=0; while(true){ c+=hist[v]; if(c>=half) break; v++; } out[y*w+x]=v;
+        if(x+1<w){ const xo=cx(x-r), xi=cx(x+1+r);
+          for(let dy=-r;dy<=r;dy++){ const row=cy(y+dy)*w; hist[a[row+xo]]--; hist[a[row+xi]]++; } }
+      }
+    }
+    return out;
+  })};
+}
+function bilateralFilter(im,ss,sr){
+  const w=im.w,h=im.h,r=Math.max(1,Math.ceil(2*ss)),C=im.c.length;
+  const sw=[]; for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++) sw.push(Math.exp(-(dx*dx+dy*dy)/(2*ss*ss)));
+  const maxD=C*255*255+1, lut=new Float32Array(maxD); for(let i=0;i<maxD;i++) lut[i]=Math.exp(-i/(2*sr*sr*C));
+  const src=im.c.map(a=>{ const u=new Uint8Array(a.length); for(let i=0;i<a.length;i++) u[i]=Math.round(clamp255(a[i])); return u; });
+  const out=im.c.map(()=>new Float32Array(w*h));
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i0=y*w+x; let wt=0; const acc=[0,0,0]; let t=0;
+    for(let dy=-r;dy<=r;dy++){ let yy=y+dy; yy=yy<0?0:(yy>=h?h-1:yy);
+      for(let dx=-r;dx<=r;dx++,t++){ let xx=x+dx; xx=xx<0?0:(xx>=w?w-1:xx); const j=yy*w+xx;
+        let d2=0; for(let ch=0;ch<C;ch++){ const e=src[ch][j]-src[ch][i0]; d2+=e*e; }
+        const ww=sw[t]*lut[d2]; wt+=ww; for(let ch=0;ch<C;ch++) acc[ch]+=ww*src[ch][j]; } }
+    for(let ch=0;ch<C;ch++) out[ch][i0]=acc[ch]/wt;
+  }
+  return {w,h,c:out};
+}
+function multiFrame(im,n,type,p){
+  // n 帧独立噪声求平均：高斯噪声的平均仍是高斯、标准差变为 σ/√n；n 个泊松(λ)之和是泊松(nλ)。
+  // 这两种直接按等价分布一次生成（手机上也快），椒盐噪声逐帧真实模拟。
+  if(type==='gauss') return addNoise(im,type,{sigma:p.sigma/Math.sqrt(n)},seed);
+  if(type==='poisson') return addNoise(im,type,{photons:p.photons*n},seed);
+  const out={w:im.w,h:im.h,c:im.c.map(a=>new Float32Array(a.length))};
+  for(let f=0;f<n;f++){ const fr = f===0 ? noisy : addNoise(im,type,p,seed+7919*f);
+    for(let ch=0;ch<out.c.length;ch++){ const a=out.c[ch], b=fr.c[ch]; for(let i=0;i<a.length;i++) a[i]+=b[i]/n; } }
+  return out;
+}
+
+// ---------- 示例图 ----------
+function makeSample(kind){
+  const W=640,H=440,cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
+  if(kind==='pattern'){
+    const sky=g.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#5b9bd5'); sky.addColorStop(1,'#e8f1fb'); g.fillStyle=sky; g.fillRect(0,0,W,H);
+    g.fillStyle='#f2c14e'; g.beginPath(); g.arc(520,90,52,0,2*Math.PI); g.fill();
+    g.fillStyle='#3a7d44'; g.beginPath(); g.moveTo(0,330); g.lineTo(150,190); g.lineTo(280,300); g.lineTo(420,170); g.lineTo(640,320); g.lineTo(640,440); g.lineTo(0,440); g.fill();
+    g.fillStyle='#8c4b2f'; g.fillRect(70,270,150,120); g.fillStyle='#c0392b'; g.beginPath(); g.moveTo(55,272); g.lineTo(145,205); g.lineTo(235,272); g.fill();
+    g.fillStyle='#fdf6e3'; g.fillRect(100,300,36,36); g.fillRect(160,300,36,36); g.fillStyle='#4a2c1a'; g.fillRect(132,340,28,50);
+    for(let i=0;i<8;i++){ g.fillStyle=i%2?'#222':'#fafafa'; g.fillRect(330+i*30,330,30,90); }
+    g.strokeStyle='#111'; g.lineWidth=2; g.strokeRect(330,330,240,90);
+    const gr=g.createLinearGradient(330,0,570,0); gr.addColorStop(0,'#000'); gr.addColorStop(1,'#fff'); g.fillStyle=gr; g.fillRect(330,280,240,40);
+    g.fillStyle='#0054A6'; g.beginPath(); g.arc(470,215,34,0,2*Math.PI); g.fill(); g.fillStyle='#EF7E00'; g.fillRect(250,215,50,50);
+  } else {
+    g.fillStyle='#fbfaf6'; g.fillRect(0,0,W,H); g.fillStyle='#111'; g.textBaseline='top';
+    g.font='bold 64px "Microsoft YaHei","PingFang SC",sans-serif'; g.fillText('无处不在的统计',40,30);
+    g.font='28px "Microsoft YaHei","PingFang SC",sans-serif'; g.fillText('观测图像 = 理想图像 + 噪声',40,120);
+    g.font='18px "Microsoft YaHei","PingFang SC",sans-serif'; g.fillText('平均数 · 中位数 · 标准差 —— 用一群数据去猜那个真实值',40,170);
+    g.font='13px sans-serif'; g.fillText('The quick brown fox jumps over the lazy dog. 0123456789',40,205);
+    for(let i=0;i<24;i++){ g.fillStyle='#111'; g.fillRect(40+i*12,250,1+(i%4),150); }
+    g.strokeStyle='#0054A6'; for(let k=0;k<12;k++){ g.lineWidth=1+k*0.3; g.beginPath(); g.arc(500,325,10+k*8,0,2*Math.PI); g.stroke(); }
+  }
+  return cv;
+}
+
+// ---------- 主流程 ----------
+function loadSource(srcCanvasOrImg){
+  const maxSide=+$('maxSide').value; const sw=srcCanvasOrImg.naturalWidth||srcCanvasOrImg.width, sh=srcCanvasOrImg.naturalHeight||srcCanvasOrImg.height;
+  const s=Math.min(1,maxSide/Math.max(sw,sh)); const w=Math.max(1,Math.round(sw*s)), h=Math.max(1,Math.round(sh*s));
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const ctx=cv.getContext('2d'); ctx.imageSmoothingQuality='high'; ctx.drawImage(srcCanvasOrImg,0,0,w,h);
+  orig=fromCanvas(cv,$('gray').checked); draw(orig,$('cOrig'));
+  $('imgInfo').textContent=`当前处理尺寸：${w} × ${h}${$('gray').checked?'（灰度）':'（彩色）'}`;
+  updateNoise();
+}
+let srcObj=null;
+function reloadCurrent(){ if(srcObj) loadSource(srcObj); }
+
+function updateNoise(){ if(!orig) return;
+  const type=$('noiseType').value, p=readParams($('noiseParams'),NOISE[type]);
+  noisy = type==='none' ? cloneImg(orig) : addNoise(orig,type,p,seed);
+  draw(noisy,$('cNoisy'));
+  const v=psnr(orig,noisy); $('mNoisy').innerHTML = isFinite(v)?`PSNR = <b>${v.toFixed(2)} dB</b>`:'与原图完全相同';
+  scheduleDenoise();
+}
+function scheduleDenoise(){ clearTimeout(timer); $('status').textContent='计算中…'; timer=setTimeout(runDenoise,30); }
+function runDenoise(){ if(!orig||!noisy) return;
+  const m=$('method').value, p=readParams($('methodParams'),METHOD[m].p), t0=performance.now();
+  let out;
+  if(m==='mean') out=meanFilter(noisy,p.k);
+  else if(m==='median') out=medianFilter(noisy,p.k);
+  else if(m==='gauss') out=gaussFilter(noisy,p.s);
+  else if(m==='bilateral') out=bilateralFilter(noisy,p.ss,p.sr);
+  else if(m==='multi'){ const type=$('noiseType').value; out = type==='none'?cloneImg(noisy):multiFrame(orig,Math.round(p.n),type,readParams($('noiseParams'),NOISE[type])); }
+  else out=cloneImg(noisy);
+  draw(out,$('cDen'));
+  const v=psnr(orig,out), v0=psnr(orig,noisy);
+  let html = isFinite(v)?`PSNR = <b>${v.toFixed(2)} dB</b>`:'与原图完全相同';
+  if(isFinite(v)&&isFinite(v0)){ const d=v-v0; html += d>=0?` <span class="up">↑${d.toFixed(2)}</span>`:` <span class="down">↓${(-d).toFixed(2)}</span>`; }
+  $('mDen').innerHTML=html;
+  $('status').textContent=`用时 ${(performance.now()-t0).toFixed(0)} ms`;
+}
+function updateMethodUI(){
+  const m=$('method').value; buildParams($('methodParams'),METHOD[m].p,()=>{ updateGaussHint(); scheduleDenoise(); });
+  updateGaussHint(); scheduleDenoise();
+}
+function updateGaussHint(){
+  const m=$('method').value;
+  if(m==='gauss'){ const s=readParams($('methodParams'),METHOD.gauss.p).s, r=Math.max(1,Math.ceil(3*s));
+    $('methodHint').textContent=`离中心越近的邻居权重越大（钟形曲线）。当前实际窗口 ${2*r+1}×${2*r+1}（取 ±3σ）。`; }
+  else if(m==='bilateral'){ const ss=readParams($('methodParams'),METHOD.bilateral.p).ss, r=Math.max(1,Math.ceil(2*ss));
+    $('methodHint').textContent=METHOD[m].hint+` 当前窗口 ${2*r+1}×${2*r+1}，计算较慢请稍候。`; }
+  else $('methodHint').textContent=METHOD[m].hint;
+}
+
+// ---------- 事件 ----------
+$('noiseType').addEventListener('change',()=>{ buildParams($('noiseParams'),NOISE[$('noiseType').value],updateNoise); updateNoise(); });
+$('reseed').addEventListener('click',()=>{ seed=(seed*1103515245+12345)>>>0; updateNoise(); });
+$('method').addEventListener('change',updateMethodUI);
+$('gray').addEventListener('change',reloadCurrent);
+$('maxSide').addEventListener('change',reloadCurrent);
+$('pickBtn').addEventListener('click',()=>$('file').click());
+$('sample').addEventListener('change',()=>{ const v=$('sample').value; if(v==='upload'){ $('file').click(); } else { srcObj=makeSample(v); loadSource(srcObj); } });
+$('file').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f); const img=new Image();
+  img.onload=()=>{ srcObj=img; $('sample').value='upload'; loadSource(img); };
+  img.onerror=()=>{ $('status').textContent='这张图片无法读取，请换一张（支持 JPG / PNG 等常见格式）。'; };
+  img.src=url; e.target.value=''; });
+$('dlBtn').addEventListener('click',()=>{ const a=document.createElement('a'); a.download='去噪结果.png'; a.href=$('cDen').toDataURL('image/png'); a.click(); });
+for(const [id,cap] of [['cOrig','原图'],['cNoisy','噪声图'],['cDen','去噪后图像']]){
+  $(id).addEventListener('click',()=>{ $('ovImg').src=$(id).toDataURL('image/png'); $('ovCap').textContent=cap; $('overlay').style.display='flex'; });
+}
+$('overlay').addEventListener('click',()=>{ $('overlay').style.display='none'; });
+
+// ---------- 启动 ----------
+buildParams($('noiseParams'),NOISE.gauss,updateNoise);
+buildParams($('methodParams'),METHOD.mean.p,()=>{ updateGaussHint(); scheduleDenoise(); });
+updateGaussHint();
+srcObj=makeSample('pattern'); loadSource(srcObj);
+</script>
+</body>
+</html>
